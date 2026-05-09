@@ -2,3 +2,5 @@ django
 gunicorn
 whitenoise
 mercadopago
+dj-database-url
+psycopg2-binary
