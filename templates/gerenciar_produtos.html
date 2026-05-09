@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestão de Estoque | Peixaria SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            background-image: linear-gradient(to bottom, rgba(2, 6, 23, 0.85), rgba(2, 6, 23, 0.98)), url('https://images.unsplash.com/photo-1551244072-5d12893278ab?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover; background-position: center; background-attachment: fixed;
+            color: #f8fafc;
+        }
+        .glass-panel { background: rgba(15, 23, 42, 0.65); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px); border: 1px solid rgba(56, 189, 248, 0.15); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5); }
+        .modal-enter { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+    </style>
+</head>
+<body class="min-h-screen p-6 md:p-10 relative">
+
+    <div class="max-w-6xl mx-auto">
+        
+        <!-- Cabeçalho -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-sky-500/20 pb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-sky-300 to-blue-100 tracking-tight">Gestão de Cortes</h1>
+                <p class="text-sky-400 font-bold uppercase tracking-widest mt-1 text-[10px]">Controle sua Vitrine B2B</p>
+            </div>
+            <a href="{% url 'painel_interno' %}" class="glass-panel hover:bg-sky-600/20 text-sky-400 hover:text-sky-300 font-bold text-xs py-2 px-4 rounded-lg flex items-center gap-2 transition-colors border border-sky-500/30">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar ao Comando
+            </a>
+        </header>
+
+        <div class="grid lg:grid-cols-3 gap-8">
+            
+            <!-- Painel de Adicionar Produto (Esquerda) -->
+            <div class="lg:col-span-1">
+                <div class="glass-panel rounded-3xl p-6 shadow-xl sticky top-6">
+                    <h2 class="text-lg font-black text-white mb-5 border-b border-slate-700 pb-3 flex items-center gap-2">
+                        <span class="text-sky-400">+</span> Novo Corte
+                    </h2>
+                    
+                    <form action="{% url 'gerenciar_produtos' %}" method="POST" class="space-y-4">
+                        {% csrf_token %}
+                        
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nome do Filé</label>
+                            <input type="text" name="nome" required placeholder="Ex: Salmão Premium" class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 transition-colors shadow-inner">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Preço por KG (R$)</label>
+                            <input type="text" name="preco_por_kg" required placeholder="Ex: 59,90" class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 transition-colors shadow-inner">
+                        </div>
+
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Descrição Curta</label>
+                            <input type="text" name="descricao" required placeholder="Ex: Sem espinhas, a vácuo" class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 transition-colors shadow-inner">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Link da Imagem (Opcional)</label>
+                            <input type="url" name="imagem_url" placeholder="https://..." class="w-full px-4 py-3 bg-slate-900/80 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500 transition-colors shadow-inner">
+                        </div>
+
+                        <button type="submit" class="w-full bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-extrabold py-3.5 px-4 rounded-xl text-xs uppercase tracking-wider mt-4 transition-all shadow-[0_0_15px_rgba(14,165,233,0.3)]">
+                            Adicionar ao Catálogo
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Tabela de Produtos Cadastrados (Direita) -->
+            <div class="lg:col-span-2">
+                <div class="glass-panel rounded-3xl overflow-hidden shadow-xl">
+                    <div class="px-6 py-5 border-b border-sky-500/20 bg-slate-900/40">
+                        <h2 class="text-lg font-black text-white">Sua Vitrine B2B</h2>
+                    </div>
+                    
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-900/60 text-slate-400 text-[10px] uppercase tracking-widest">
+                                    <th class="px-6 py-4 font-black">Corte & Detalhes</th>
+                                    <th class="px-6 py-4 font-black">Preço/KG</th>
+                                    <th class="px-6 py-4 font-black">Status</th>
+                                    <th class="px-6 py-4 font-black text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-700/50">
+                                
+                                {% for produto in produtos %}
+                                <tr class="hover:bg-slate-800/50 transition-colors group">
+                                    <td class="px-6 py-4 flex items-center gap-3">
+                                        <div class="w-10 h-10 rounded-lg bg-slate-800 overflow-hidden shrink-0 border border-slate-700">
+                                            {% if produto.imagem_url %}
+                                                <img src="{{ produto.imagem_url }}" class="w-full h-full object-cover">
+                                            {% else %}
+                                                <div class="w-full h-full flex items-center justify-center text-[8px] text-slate-500 uppercase font-bold">Sem<br>Foto</div>
+                                            {% endif %}
+                                        </div>
+                                        <div>
+                                            <p class="text-sm font-bold text-white group-hover:text-sky-300 transition-colors">{{ produto.nome }}</p>
+                                            <p class="text-[10px] text-slate-400">{{ produto.descricao }}</p>
+                                        </div>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        <span class="text-sky-400 font-black">R$ {{ produto.preco_por_kg }}</span>
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap">
+                                        {% if produto.disponivel %}
+                                            <span class="px-2.5 py-1 bg-green-500/20 text-green-400 text-[10px] font-black rounded-md border border-green-500/30 uppercase tracking-wider">Online</span>
+                                        {% else %}
+                                            <span class="px-2.5 py-1 bg-yellow-500/20 text-yellow-500 text-[10px] font-black rounded-md border border-yellow-500/30 uppercase tracking-wider">Pausado</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="px-6 py-4 whitespace-nowrap text-right space-x-2">
+                                        <!-- Botão Editar (Abre o Modal) -->
+                                        <button onclick="abrirModalEditar('{{ produto.id }}', '{{ produto.nome|escapejs }}', '{{ produto.descricao|escapejs }}', '{{ produto.preco_por_kg }}', '{{ produto.imagem_url|default_if_none:"" }}')" class="bg-slate-700 hover:bg-sky-600 text-white text-[10px] font-bold py-1.5 px-3 rounded uppercase tracking-wider transition-colors">
+                                            Editar
+                                        </button>
+                                        
+                                        <!-- Botão Pausar/Ativar -->
+                                        <a href="{% url 'toggle_produto' produto.id %}" class="inline-block bg-slate-700 hover:bg-slate-600 text-white text-[10px] font-bold py-1.5 px-3 rounded uppercase tracking-wider transition-colors">
+                                            {% if produto.disponivel %} Pausar {% else %} Ativar {% endif %}
+                                        </a>
+
+                                        <!-- Botão Excluir -->
+                                        <a href="{% url 'excluir_produto' produto.id %}" onclick="return confirm('Tem certeza que deseja apagar {{ produto.nome }}?')" class="inline-block bg-red-500/10 hover:bg-red-500/80 text-red-400 hover:text-white border border-red-500/30 text-[10px] font-bold py-1.5 px-3 rounded uppercase tracking-wider transition-colors">
+                                            X
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% empty %}
+                                <tr>
+                                    <td colspan="4" class="px-6 py-12 text-center text-slate-500">
+                                        Nenhum corte cadastrado. Adicione seu primeiro peixe!
+                                    </td>
+                                </tr>
+                                {% endfor %}
+
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- MODAL DE EDIÇÃO                            -->
+    <!-- ========================================== -->
+    <div id="modal-editar" class="hidden fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+        <div class="glass-panel border border-sky-500/30 rounded-3xl w-full max-w-md p-8 shadow-2xl modal-enter relative">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-sky-500/10 rounded-bl-full"></div>
+            
+            <h2 class="text-2xl font-black text-white mb-6">Editar Corte</h2>
+            
+            <form id="form-editar" method="POST" class="space-y-4 relative z-10">
+                {% csrf_token %}
+                
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Nome do Filé</label>
+                    <input type="text" id="edit_nome" name="nome" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500">
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Preço por KG (R$)</label>
+                    <input type="text" id="edit_preco" name="preco_por_kg" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500">
+                </div>
+
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Descrição</label>
+                    <input type="text" id="edit_descricao" name="descricao" required class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500">
+                </div>
+                
+                <div>
+                    <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Link da Imagem</label>
+                    <input type="url" id="edit_imagem" name="imagem_url" class="w-full px-4 py-3 bg-slate-900 border border-slate-700 rounded-xl text-white text-sm focus:outline-none focus:border-sky-500">
+                </div>
+
+                <div class="flex gap-3 pt-4">
+                    <button type="button" onclick="fecharModalEditar()" class="w-1/3 bg-slate-800 hover:bg-slate-700 text-white font-bold py-3.5 rounded-xl text-xs uppercase transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" class="w-2/3 bg-sky-600 hover:bg-sky-500 text-white font-black py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg transition-colors">
+                        Salvar Alterações
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function abrirModalEditar(id, nome, descricao, preco, imagem) {
+            // Preenche os campos do pop-up
+            document.getElementById('edit_nome').value = nome;
+            document.getElementById('edit_descricao').value = descricao;
+            document.getElementById('edit_preco').value = preco;
+            document.getElementById('edit_imagem').value = imagem;
+            
+            // Ajusta o destino do formulário para o ID correto
+            document.getElementById('form-editar').action = `/painel/produtos/${id}/editar/`;
+            
+            // Mostra o Modal
+            document.getElementById('modal-editar').classList.remove('hidden');
+        }
+
+        function fecharModalEditar() {
+            document.getElementById('modal-editar').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>

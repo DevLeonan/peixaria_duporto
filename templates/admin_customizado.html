@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Super Admin | Peixaria SaaS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #020617;
+            background-image: linear-gradient(to bottom, rgba(2, 6, 23, 0.9), rgba(2, 6, 23, 0.99)), url('https://images.unsplash.com/photo-1551244072-5d12893278ab?q=80&w=2000&auto=format&fit=crop');
+            background-size: cover; background-position: center; background-attachment: fixed;
+            color: #f8fafc;
+        }
+        .glass-panel { background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(16px); border: 1px solid rgba(168, 85, 247, 0.15); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5); }
+    </style>
+</head>
+<body class="min-h-screen p-6 md:p-10">
+
+    <div class="max-w-7xl mx-auto">
+        
+        <!-- Cabeçalho -->
+        <header class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 border-b border-purple-500/20 pb-6 gap-4">
+            <div>
+                <h1 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-300 tracking-tight">Super Admin</h1>
+                <p class="text-purple-400 font-bold uppercase tracking-widest mt-1 text-[10px]">Controle Absoluto de Servidor</p>
+            </div>
+            <a href="{% url 'painel_interno' %}" class="glass-panel hover:bg-purple-600/20 text-purple-400 hover:text-purple-300 font-bold text-xs py-2 px-4 rounded-lg flex items-center gap-2 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path></svg>
+                Voltar à Operação
+            </a>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            
+            <!-- Sessão 1: Exportar Relatórios (CSV) -->
+            <div class="glass-panel rounded-2xl p-6 shadow-xl border-t-4 border-t-blue-500">
+                <h3 class="text-white font-black mb-2 flex items-center gap-2">📊 Banco de Dados</h3>
+                <p class="text-[11px] text-slate-400 mb-5">Exporte suas listas em Excel (CSV) para campanhas externas ou contabilidade.</p>
+                <div class="space-y-3">
+                    <a href="{% url 'exportar_leads' %}" class="block text-center bg-blue-600/10 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 font-bold py-3 rounded-xl text-xs transition-colors uppercase tracking-wider">
+                        Download Lista Clientes
+                    </a>
+                    <a href="{% url 'exportar_vendas' %}" class="block text-center bg-emerald-600/10 hover:bg-emerald-600/30 text-emerald-400 border border-emerald-500/30 font-bold py-3 rounded-xl text-xs transition-colors uppercase tracking-wider">
+                        Download Vendas Totais
+                    </a>
+                </div>
+            </div>
+
+            <!-- Sessão 2: Gestão de Usuários Brutos -->
+            <div class="glass-panel rounded-2xl p-6 shadow-xl border-t-4 border-t-purple-500 md:col-span-2">
+                <h3 class="text-white font-black mb-4 flex items-center gap-2">👥 Base de Restaurantes (Auditoria)</h3>
+                <div class="overflow-x-auto max-h-56 overflow-y-auto pr-2 custom-scrollbar">
+                    <table class="w-full text-left text-sm text-slate-300 border-collapse">
+                        <thead class="bg-slate-900/80 text-[10px] uppercase text-slate-400 font-bold sticky top-0 z-10 backdrop-blur-md">
+                            <tr>
+                                <th class="px-4 py-3">ID</th>
+                                <th class="px-4 py-3">Nome / CNPJ</th>
+                                <th class="px-4 py-3">WhatsApp</th>
+                                <th class="px-4 py-3 text-right">Ação Raiz</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-700/50">
+                            {% for lead in leads %}
+                            <tr class="hover:bg-slate-800/50 transition-colors">
+                                <td class="px-4 py-3 text-xs font-mono text-purple-400">#{{ lead.id }}</td>
+                                <td class="px-4 py-3">
+                                    <p class="font-bold text-white">{{ lead.nome_restaurante }}</p>
+                                    <p class="text-[10px] text-slate-500 font-mono">{{ lead.cnpj }}</p>
+                                </td>
+                                <td class="px-4 py-3 text-xs font-semibold">{{ lead.whatsapp }}</td>
+                                <td class="px-4 py-3 text-right">
+                                    <a href="{% url 'deletar_lead' lead.id %}" onclick="return confirm('PERIGO: Apagar este cliente apagará TODOS os pedidos vinculados a ele. Continuar?')" class="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors uppercase tracking-wider">
+                                        Destruir
+                                    </a>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center py-6 text-slate-500 text-xs">Nenhum cliente no banco.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sessão 3: Tabela de Pedidos Brutos -->
+        <div class="glass-panel rounded-2xl p-6 shadow-xl border-t-4 border-t-rose-500">
+            <h3 class="text-white font-black mb-4">🛒 Todos os Pedidos do Servidor</h3>
+            <div class="overflow-x-auto max-h-96 overflow-y-auto pr-2">
+                <table class="w-full text-left text-sm text-slate-300">
+                    <thead class="bg-slate-900/80 text-[10px] uppercase text-slate-400 font-bold sticky top-0 z-10 backdrop-blur-md">
+                        <tr>
+                            <th class="px-4 py-3">ID Server</th>
+                            <th class="px-4 py-3">Data Exata</th>
+                            <th class="px-4 py-3">Cliente</th>
+                            <th class="px-4 py-3">Valor</th>
+                            <th class="px-4 py-3">Status</th>
+                            <th class="px-4 py-3 text-right">Ação Raiz</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-700/50">
+                        {% for pedido in pedidos %}
+                        <tr class="hover:bg-slate-800/50 transition-colors">
+                            <td class="px-4 py-4 text-xs font-mono text-purple-400">#{{ pedido.id }}</td>
+                            <td class="px-4 py-4 text-xs">{{ pedido.data_pedido|date:"d/m/Y H:i:s" }}</td>
+                            <td class="px-4 py-4 font-bold text-white">{{ pedido.lead.nome_restaurante }}</td>
+                            <td class="px-4 py-4 font-black text-emerald-400">R$ {{ pedido.valor_total }}</td>
+                            <td class="px-4 py-4">
+                                <span class="px-2.5 py-1 rounded text-[9px] uppercase font-bold border 
+                                    {% if pedido.status == 'PAGO' %}bg-green-500/20 text-green-400 border-green-500/30
+                                    {% elif pedido.status == 'PENDENTE' %}bg-yellow-500/20 text-yellow-400 border-yellow-500/30
+                                    {% else %}bg-red-500/20 text-red-400 border-red-500/30{% endif %}">
+                                    {{ pedido.status }}
+                                </span>
+                            </td>
+                            <td class="px-4 py-4 text-right">
+                                <a href="{% url 'deletar_pedido' pedido.id %}" onclick="return confirm('PERIGO: Forçar a exclusão deste pedido do banco de dados? Essa ação não pode ser desfeita.')" class="bg-red-500/10 hover:bg-red-600 text-red-400 hover:text-white border border-red-500/30 text-[10px] font-bold py-1.5 px-3 rounded-lg transition-colors uppercase tracking-wider">
+                                    Excluir DB
+                                </a>
+                            </td>
+                        </tr>
+                        {% empty %}
+                        <tr><td colspan="6" class="text-center py-10 text-slate-500 text-xs">Nenhum pedido no banco de dados.</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Scrollbar customizada para combinar com o tema escuro -->
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.5); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.3); border-radius: 10px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.6); }
+    </style>
+</body>
+</html>
