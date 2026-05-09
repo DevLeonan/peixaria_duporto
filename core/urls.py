@@ -51,4 +51,9 @@ urlpatterns = [
     # Rotas de Destruição (Apagar do Banco)
     path('painel/deus/lead/<int:lead_id>/deletar/', views.deletar_lead, name='deletar_lead'),
     path('painel/deus/pedido/<int:pedido_id>/deletar/', views.deletar_pedido, name='deletar_pedido'),
+    # ==========================================
+    # WEBHOOK MERCADO PAGO (O OLHEIRO)
+    # ==========================================
+    path('webhook/mercadopago/', views.webhook_mercadopago, name='webhook_mercadopago'),
+]
 ]

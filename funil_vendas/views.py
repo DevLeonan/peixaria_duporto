@@ -8,7 +8,11 @@ from django.utils.timezone import localtime, now
 from datetime import timedelta
 from urllib.parse import quote  # Usado para formatar o texto do WhatsApp
 from django.db.models import Sum, ProtectedError
+from django.views.decorators.csrf import csrf_exempt # NOVO: Necessário para o Webhook funcionar
 from .models import LeadRestaurante, CortePescado, Pedido, ItemPedido
+import urllib.request
+import urllib.parse
+
 
 # ==========================================
 # CONFIGURAÇÃO MERCADO PAGO (Sua Chave Mestra)
@@ -208,112 +212,144 @@ def excluir_produto(request, produto_id):
     return redirect('gerenciar_produtos')
     
 # ==========================================
-# FINALIZAR PEDIDO COM PIX MERCADO PAGO
+# FINALIZAR PEDIDO COM PIX E NOTIFICAÇÃO NTFY (PUSH NATIVO)
 # ==========================================
 def finalizar_pedido(request, token):
     if request.method == "POST":
         lead = LeadRestaurante.objects.filter(token_acesso=token).first()
-        if not lead:
-            return JsonResponse({'sucesso': False, 'erro': 'Cliente não encontrado'})
+        if not lead: return JsonResponse({'sucesso': False, 'erro': 'Cliente não encontrado'})
 
         try:
             dados = json.loads(request.body)
-            carrinho = dados.get('carrinho', [])
-            forma_pagamento = dados.get('forma_pagamento', 'PIX')
-            
-            endereco = dados.get('endereco', '')
-            data_entrega = dados.get('data_entrega', None)
-            hora_entrega = dados.get('hora_entrega', None)
-            
-            if not data_entrega: data_entrega = None
-            if not hora_entrega: hora_entrega = None
+            carrinho, forma_pagamento = dados.get('carrinho', []), dados.get('forma_pagamento', 'PIX')
+            endereco, data_entrega, hora_entrega = dados.get('endereco', ''), dados.get('data_entrega'), dados.get('hora_entrega')
 
             pedido = Pedido.objects.create(
-                lead=lead,
-                forma_pagamento=forma_pagamento,
-                valor_total=0,
-                endereco_entrega=endereco,
-                data_entrega=data_entrega,
-                hora_entrega=hora_entrega
+                lead=lead, forma_pagamento=forma_pagamento, valor_total=0,
+                endereco_entrega=endereco, data_entrega=data_entrega or None, hora_entrega=hora_entrega or None
             )
 
             total_calculado = 0
-
             for item in carrinho:
                 corte = CortePescado.objects.get(id=item['id'])
-                quantidade = float(item['quantidade'])
-                subtotal = float(corte.preco_por_kg) * quantidade
-                total_calculado += subtotal
-                
-                ItemPedido.objects.create(
-                    pedido=pedido,
-                    corte=corte,
-                    quantidade_kg=quantidade,
-                    preco_na_epoca=corte.preco_por_kg
-                )
+                qtd = float(item['quantidade'])
+                total_calculado += float(corte.preco_por_kg) * qtd
+                ItemPedido.objects.create(pedido=pedido, corte=corte, quantidade_kg=qtd, preco_na_epoca=corte.preco_por_kg)
 
             pedido.valor_total = total_calculado
             pedido.save()
 
-            # --- INTEGRAÇÃO MERCADO PAGO ---
-            qr_code_base64 = ""
-            pix_copia_cola = ""
+            qr_code_base64 = pix_copia_cola = ""
             
             if forma_pagamento == 'PIX':
-                # Limpa o CNPJ para enviar pro Mercado Pago (só números)
                 cnpj_limpo = lead.cnpj.replace('.', '').replace('/', '').replace('-', '')
-                
+                # Se o CNPJ for vazio ou muito curto, usa um CPF genérico para não travar o Mercado Pago
+                if len(cnpj_limpo) < 11:
+                    cnpj_limpo = "00000000000191" 
+                    
                 payment_data = {
                     "transaction_amount": float(total_calculado),
                     "description": f"Pedido #{pedido.id} - Peixaria Duporto",
                     "payment_method_id": "pix",
+                    "external_reference": str(pedido.id),
                     "payer": {
-                        "email": f"cliente_{lead.id}@peixariaduporto.com.br",
-                        "first_name": lead.nome_restaurante,
-                        "identification": {
-                            "type": "CNPJ",
-                            "number": cnpj_limpo
-                        }
+                        "email": f"cliente_{pedido.id}@peixariaduporto.com.br",
+                        "first_name": lead.nome_restaurante or "Cliente B2B",
+                        "identification": {"type": "CNPJ", "number": cnpj_limpo}
                     }
                 }
                 
                 payment_response = sdk.payment().create(payment_data)
-                payment = payment_response["response"]
+                payment = payment_response.get("response", {})
                 
-                # Extrai os dados do Pix da resposta do Mercado Pago
+                # VERIFICAÇÃO DE ERRO DO MERCADO PAGO
                 if "point_of_interaction" in payment:
                     pix_copia_cola = payment["point_of_interaction"]["transaction_data"]["qr_code"]
                     qr_code_base64 = payment["point_of_interaction"]["transaction_data"]["qr_code_base64"]
+                else:
+                    erro_mp = payment.get("message", "Erro desconhecido")
+                    pedido.delete() 
+                    return JsonResponse({'sucesso': False, 'erro': f"Mercado Pago recusou: {erro_mp}"})
 
-            # --- PREPARA O WHATSAPP ---
-            data_formatada = "Sem data" if not data_entrega else data_entrega
-            hora_formatada = "Sem hora" if not hora_entrega else hora_entrega
+            # ==========================================
+            # ALARME NATIVO NO CELULAR (NTFY)
+            # ==========================================
+            # INVENTE SEU TÓPICO AQUI (O mesmo que você digitou no App do celular)
+            topico_secreto = "duporto_pedidos_vip_2026" 
             
-            texto_wpp = (
-                f"Fala Peixaria Duporto! Tudo certo?\n\n"
-                f"Acabei de confirmar o *Pedido #{pedido.id}* pelo sistema B2B.\n\n"
-                f"📍 *Endereço:* {endereco}\n"
-                f"📅 *Agendado para:* {data_formatada} às {hora_formatada}\n"
-                f"💰 *Total:* R$ {total_calculado:.2f} ({forma_pagamento})\n\n"
-                f"Queria acompanhar o status da minha entrega, por favor!"
+            msg_alerta = (
+                f"👤 Cliente: {lead.nome_restaurante}\n"
+                f"💰 Valor: R$ {total_calculado:.2f}\n"
+                f"💳 Pagamento: {forma_pagamento}\n"
+                f"📍 Endereço: {endereco}"
             )
             
+            try:
+                import urllib.request
+                # Envia a notificação Push direta
+                req = urllib.request.Request(
+                    f"https://ntfy.sh/{topico_secreto}", 
+                    data=msg_alerta.encode('utf-8'), 
+                    method="POST"
+                )
+                # Adiciona o Título da Notificação
+                req.add_header("Title", f"🚨 NOVO PEDIDO: #{pedido.id}")
+                req.add_header("Tags", "moneybag,fish") # Coloca emojis na notificação
+                urllib.request.urlopen(req)
+            except Exception as e:
+                print(f"Falha ao enviar notificação pro celular: {e}")
+
+            # --- PREPARA O WHATSAPP DO CLIENTE ---
+            data_formatada = "Sem data" if not data_entrega else data_entrega
+            hora_formatada = "Sem hora" if not hora_entrega else hora_entrega
+            texto_wpp = f"Fala Peixaria Duporto! Acabei de confirmar o *Pedido #{pedido.id}*.\n\n📍 *Endereço:* {endereco}\n📅 *Agendado para:* {data_formatada} às {hora_formatada}\n💰 *Total:* R$ {total_calculado:.2f} ({forma_pagamento})"
             link_whatsapp_oficial = f"https://wa.me/5551996799655?text={quote(texto_wpp)}"
 
             return JsonResponse({
-                'sucesso': True, 
-                'pedido_id': pedido.id,
-                'total': float(total_calculado),
-                'forma_pagamento': forma_pagamento,
-                'link_whatsapp': link_whatsapp_oficial,
-                'qr_code_64': qr_code_base64,
-                'pix_copia_cola': pix_copia_cola
+                'sucesso': True, 'pedido_id': pedido.id, 'total': float(total_calculado),
+                'forma_pagamento': forma_pagamento, 'link_whatsapp': link_whatsapp_oficial,
+                'qr_code_64': qr_code_base64, 'pix_copia_cola': pix_copia_cola
             })
-
-        except Exception as e:
+        except Exception as e: 
             return JsonResponse({'sucesso': False, 'erro': str(e)})
+    return JsonResponse({'sucesso': False})
 
-    return JsonResponse({'sucesso': False, 'erro': 'Método inválido'})
+# ==========================================
+# WEBHOOK MERCADO PAGO (AUTOMAÇÃO DE PAGAMENTO)
+# ==========================================
+@csrf_exempt
+def webhook_mercadopago(request):
+    if request.method == 'POST':
+        try:
+            # O Mercado Pago avisa que algo aconteceu
+            dados = json.loads(request.body)
+            acao = dados.get('action') or dados.get('type')
+            
+            if acao == 'payment.created' or acao == 'payment':
+                # Pega o ID do pagamento lá no Mercado Pago
+                pagamento_id = dados.get('data', {}).get('id')
+                
+                if pagamento_id:
+                    # Vai no Mercado Pago e pergunta: "Esse pagamento foi aprovado mesmo?"
+                    resposta = sdk.payment().get(pagamento_id)
+                    info = resposta.get("response", {})
+                    
+                    if info.get('status') == 'approved':
+                        # Pega o crachá do pedido que mandamos antes
+                        pedido_id = info.get('external_reference')
+                        
+                        if pedido_id:
+                            # Marca como PAGO no nosso banco de dados automaticamente!
+                            pedido = Pedido.objects.get(id=pedido_id)
+                            pedido.status = 'PAGO'
+                            pedido.save()
+                            
+        except Exception as e:
+            print(f"Erro no Webhook: {e}")
+            
+    # O Mercado Pago EXIGE que a gente responda "200 OK" rápido, senão ele fica mandando de novo
+    return HttpResponse(status=200)
+
 
 # ==========================================
 # SUPER ADMIN: MODO DEUS (RELATÓRIOS E EXCLUSÕES BRUTAS)
