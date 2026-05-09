@@ -64,7 +64,7 @@ class Pedido(models.Model):
     # === NOVOS CAMPOS PARA O AGENDAMENTO DE ENTREGA ===
     endereco_entrega = models.CharField(max_length=255, verbose_name="Endereço de Entrega", blank=True, null=True)
     data_entrega = models.DateField(verbose_name="Data Agendada", blank=True, null=True)
-    hora_entrega = models.TimeField(verbose_name="Horário Agendado", blank=True, null=True)
+    hora_entrega = models.CharField(max_length=50, blank=True, null=True)
 
     class Meta:
         verbose_name = "Pedido"
