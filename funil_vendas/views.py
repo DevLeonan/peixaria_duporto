@@ -293,7 +293,7 @@ def finalizar_pedido(request, token):
                     method="POST"
                 )
                 # Adiciona o Título da Notificação
-                req.add_header("Title", f"🚨 NOVO PEDIDO: #{pedido.id}")
+                req.add_header("Title", f" NOVO PEDIDO: #{pedido.id}")
                 req.add_header("Tags", "moneybag,fish") # Coloca emojis na notificação
                 urllib.request.urlopen(req)
             except Exception as e:
