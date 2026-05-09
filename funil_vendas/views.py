@@ -49,7 +49,32 @@ def catalogo_precos(request, token):
         return redirect('captura')
 
     cortes = CortePescado.objects.filter(disponivel=True)
-    return render(request, 'catalogo.html', {'cortes': cortes, 'lead': lead})
+
+    # ==========================================
+    # LÓGICA DO BOTÃO MÁGICO (REPETIR PEDIDO)
+    # ==========================================
+    # 1. Procura o último pedido finalizado por este cliente
+    ultimo_pedido = Pedido.objects.filter(lead=lead).order_by('-data_pedido').first()
+    
+    ultimo_carrinho = []
+    if ultimo_pedido:
+        # 2. Se achar, pega os itens que ele comprou na época
+        itens_ultimo = ItemPedido.objects.filter(pedido=ultimo_pedido)
+        for item in itens_ultimo:
+            ultimo_carrinho.append({
+                'corte_id': item.corte.id,
+                'quantidade': float(item.quantidade_kg)
+            })
+            
+    # 3. Transforma a lista numa linguagem que o Javascript entenda lá na tela
+    ultimo_carrinho_json = json.dumps(ultimo_carrinho)
+
+    return render(request, 'catalogo.html', {
+        'cortes': cortes, 
+        'lead': lead,
+        'ultimo_carrinho_json': ultimo_carrinho_json, # Manda o histórico escondido pra tela
+        'tem_pedido_anterior': bool(ultimo_carrinho)  # Avisa se é pra mostrar o botão ou não
+    })
 
 @login_required
 def painel_interno(request):
@@ -262,17 +287,13 @@ def finalizar_pedido(request, token):
             
             if forma_pagamento == 'PIX':
                 # --- LÓGICA DE IDENTIFICAÇÃO INTELIGENTE ---
-                # Remove qualquer ponto, barra ou traço que o cliente possa ter digitado
                 id_limpo = lead.cnpj.replace('.', '').replace('/', '').replace('-', '').replace(' ', '').strip()
                 
-                # O Mercado Pago exige saber se é CPF (11) ou CNPJ (14)
                 if len(id_limpo) == 11:
                     tipo_doc = "CPF"
                 elif len(id_limpo) == 14:
                     tipo_doc = "CNPJ"
                 else:
-                    # Se não for nenhum dos dois, o Mercado Pago vai dar erro. 
-                    # Aqui evitamos o erro avisando ao cliente antes.
                     pedido.delete()
                     return JsonResponse({'sucesso': False, 'erro': f"O documento '{id_limpo}' é inválido. Digite um CPF ou CNPJ correto."})
                     
@@ -285,7 +306,7 @@ def finalizar_pedido(request, token):
                         "email": f"comprador_{pedido.id}@peixariaduporto.com.br",
                         "first_name": lead.nome_restaurante or "Cliente",
                         "identification": {
-                            "type": tipo_doc, # <--- DINÂMICO: Agora aceita CPF ou CNPJ
+                            "type": tipo_doc,
                             "number": id_limpo
                         }
                     }
@@ -298,7 +319,6 @@ def finalizar_pedido(request, token):
                     pix_copia_cola = payment["point_of_interaction"]["transaction_data"]["qr_code"]
                     qr_code_base64 = payment["point_of_interaction"]["transaction_data"]["qr_code_base64"]
                 else:
-                    # Captura o erro detalhado para você saber o que houve
                     erro_detalhado = payment.get("message", "Erro na API do Mercado Pago")
                     pedido.delete() 
                     return JsonResponse({'sucesso': False, 'erro': f"Mercado Pago recusou: {erro_detalhado}"})
@@ -354,25 +374,20 @@ def finalizar_pedido(request, token):
 def webhook_mercadopago(request):
     if request.method == 'POST':
         try:
-            # O Mercado Pago avisa que algo aconteceu
             dados = json.loads(request.body)
             acao = dados.get('action') or dados.get('type')
             
             if acao == 'payment.created' or acao == 'payment':
-                # Pega o ID do pagamento lá no Mercado Pago
                 pagamento_id = dados.get('data', {}).get('id')
                 
                 if pagamento_id:
-                    # Vai no Mercado Pago e pergunta: "Esse pagamento foi aprovado mesmo?"
                     resposta = sdk.payment().get(pagamento_id)
                     info = resposta.get("response", {})
                     
                     if info.get('status') == 'approved':
-                        # Pega o crachá do pedido que mandamos antes
                         pedido_id = info.get('external_reference')
                         
                         if pedido_id:
-                            # Marca como PAGO no nosso banco de dados automaticamente!
                             pedido = Pedido.objects.get(id=pedido_id)
                             pedido.status = 'PAGO'
                             pedido.save()
@@ -380,7 +395,6 @@ def webhook_mercadopago(request):
         except Exception as e:
             print(f"Erro no Webhook: {e}")
             
-    # O Mercado Pago EXIGE que a gente responda "200 OK" rápido, senão ele fica mandando de novo
     return HttpResponse(status=200)
 
 
