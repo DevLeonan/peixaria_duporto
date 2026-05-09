@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Peixaria Duporto | Acesso B2B</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
@@ -10,15 +10,14 @@
         body {
             font-family: 'Inter', sans-serif;
             background-color: #020617;
-            /* Fundo de mar escuro e elegante */
             background-image: linear-gradient(to bottom, rgba(2, 6, 23, 0.8), rgba(2, 6, 23, 0.98)), url('https://images.unsplash.com/photo-1551244072-5d12893278ab?q=80&w=2000&auto=format&fit=crop');
             background-size: cover;
             background-position: center;
             background-attachment: fixed;
-            overflow-x: hidden;
+            /* Evita a rolagem horizontal no celular */
+            overflow-x: hidden; 
         }
         
-        /* Efeito de Vidro Premium */
         .glass-panel {
             background: rgba(15, 23, 42, 0.65);
             backdrop-filter: blur(20px);
@@ -27,7 +26,6 @@
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
         }
 
-        /* Animação do Botão */
         .btn-glow {
             transition: all 0.3s ease;
         }
@@ -36,9 +34,11 @@
             transform: translateY(-2px);
         }
 
-        /* Efeito de flutuação suave do painel */
-        .float-panel {
-            animation: float 6s ease-in-out infinite;
+        /* Desativado o float-panel no mobile para não atrapalhar o clique */
+        @media (min-width: 768px) {
+            .float-panel {
+                animation: float 6s ease-in-out infinite;
+            }
         }
 
         @keyframes float {
@@ -48,102 +48,90 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex items-center justify-center p-4 antialiased relative">
+<body class="min-h-screen flex items-center justify-center p-3 sm:p-4 antialiased relative">
 
-    <div class="glass-panel float-panel w-full max-w-4xl rounded-3xl p-8 md:p-12 text-white relative overflow-hidden flex flex-col md:flex-row gap-10 items-center">
+    <div class="glass-panel float-panel w-full max-w-4xl rounded-3xl p-6 sm:p-8 md:p-12 text-white relative overflow-hidden flex flex-col md:flex-row gap-8 md:gap-10 items-center mt-4 mb-4">
         
-        <!-- Brilho Superior -->
         <div class="absolute top-0 left-1/2 transform -translate-x-1/2 w-full h-32 bg-sky-600 opacity-20 blur-[100px] pointer-events-none"></div>
 
-        <!-- ========================================== -->
-        <!-- COLUNA ESQUERDA: AUTORIDADE E COPY         -->
-        <!-- ========================================== -->
-        <div class="relative z-10 w-full md:w-1/2">
+        <div class="relative z-10 w-full md:w-1/2 text-center md:text-left">
             
-            <!-- Logo / Nome da Empresa -->
-            <div class="mb-6 inline-block">
-                <h2 class="text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-200">
+            <div class="mb-4 md:mb-6 inline-block">
+                <h2 class="text-2xl sm:text-3xl font-black tracking-tighter text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-200">
                     Peixaria Duporto
                 </h2>
             </div>
             
-            <!-- Badge de Localização -->
-            <div class="flex items-center gap-3 mb-6 bg-slate-900/60 border border-slate-700 p-3 rounded-xl shadow-inner w-max">
-                <div class="bg-sky-500/20 p-2 rounded-lg text-sky-400">
+            <div class="flex items-center justify-center md:justify-start gap-3 mb-6 bg-slate-900/60 border border-slate-700 p-3 rounded-xl shadow-inner w-full md:w-max">
+                <div class="bg-sky-500/20 p-2 rounded-lg text-sky-400 shrink-0">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path></svg>
                 </div>
-                <div>
-                    <p class="text-xs text-slate-400 uppercase font-bold tracking-wider">Tradição & Qualidade</p>
-                    <p class="text-sm text-white font-semibold">Mercado Público de Porto Alegre</p>
-                    <p class="text-xs text-sky-400">Banca Nº 5 - Feira do Peixe</p>
+                <div class="text-left">
+                    <p class="text-[10px] sm:text-xs text-slate-400 uppercase font-bold tracking-wider">Tradição & Qualidade</p>
+                    <p class="text-xs sm:text-sm text-white font-semibold">Mercado Público</p>
+                    <p class="text-[10px] sm:text-xs text-sky-400">Banca Nº 5</p>
                 </div>
             </div>
             
-            <h1 class="text-3xl md:text-4xl font-extrabold mb-6 leading-tight tracking-tight">
-                Peixe congelado no seu restaurante? <br>
+            <h1 class="text-2xl sm:text-3xl md:text-4xl font-extrabold mb-4 md:mb-6 leading-tight tracking-tight">
+                Peixe congelado na cozinha? <br class="hidden md:block">
                 <span class="text-transparent bg-clip-text bg-gradient-to-r from-red-400 to-orange-400">
                     Você está rasgando dinheiro.
                 </span>
             </h1>
             
-            <p class="text-base text-slate-300 mb-6 leading-relaxed font-light">
-                As indústrias injetam até <strong class="text-white font-semibold">30% de água</strong> no peso antes de embalar. 
-                Você compra 10kg, mas na panela sobram apenas 7kg. Pare de pagar por gelo.
-            </p>
+            <div class="hidden sm:block">
+                <p class="text-sm md:text-base text-slate-300 mb-6 leading-relaxed font-light">
+                    As indústrias injetam até <strong class="text-white font-semibold">30% de água</strong> no peso antes de embalar. 
+                    Você compra 10kg, mas na panela sobram apenas 7kg. Pare de pagar por gelo.
+                </p>
 
-            <div class="space-y-4">
-                <div class="flex items-center gap-3">
-                    <svg class="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                    <p class="text-sm text-slate-200">Direto da nossa banca para a sua cozinha.</p>
-                </div>
-                <div class="flex items-center gap-3">
-                    <svg class="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
-                    <p class="text-sm text-slate-200">Filés frescos, cortados no momento do pedido.</p>
+                <div class="space-y-4 text-left">
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        <p class="text-xs sm:text-sm text-slate-200">Direto da nossa banca para a sua cozinha.</p>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <svg class="w-5 h-5 text-green-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"></path></svg>
+                        <p class="text-xs sm:text-sm text-slate-200">Filés frescos, cortados no momento do pedido.</p>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- ========================================== -->
-        <!-- COLUNA DIREITA: FORMULÁRIO B2B             -->
-        <!-- ========================================== -->
         <div class="relative z-10 w-full md:w-1/2">
-            <div class="bg-slate-900/80 p-8 rounded-2xl border border-sky-500/20 shadow-[0_0_30px_rgba(14,165,233,0.1)] relative">
+            <div class="bg-slate-900/90 p-6 md:p-8 rounded-2xl border border-sky-500/20 shadow-[0_0_30px_rgba(14,165,233,0.1)] relative">
                 
-                <!-- Selo B2B -->
-                <div class="absolute -top-4 right-6 bg-sky-600 text-white text-xs font-bold uppercase tracking-widest py-1 px-4 rounded-full shadow-lg border border-sky-400">
+                <div class="absolute -top-3 sm:-top-4 right-4 sm:right-6 bg-sky-600 text-white text-[10px] sm:text-xs font-bold uppercase tracking-widest py-1 px-3 sm:px-4 rounded-full shadow-lg border border-sky-400">
                     Acesso B2B
                 </div>
 
-                <h3 class="text-xl font-bold text-white mb-2 mt-2">Acesse a Tabela de Atacado</h3>
-                <p class="text-xs text-slate-400 mb-6">Cadastre-se para liberar os preços exclusivos para restaurantes e chefs.</p>
+                <h3 class="text-lg sm:text-xl font-bold text-white mb-1 mt-1 text-center md:text-left">Tabela de Atacado</h3>
+                <p class="text-[10px] sm:text-xs text-slate-400 mb-6 text-center md:text-left">Acesso exclusivo para restaurantes.</p>
 
-                <form action="/" method="POST" class="space-y-5">
+                <form action="/" method="POST" class="space-y-4">
                     {% csrf_token %}
                     
-                    <!-- Campo: Nome do Restaurante -->
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nome do Restaurante / Empresa</label>
+                        <label class="block text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Nome do Restaurante</label>
                         <input type="text" name="nome_restaurante" required placeholder="Ex: Sushi do Japa" 
-                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
+                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 text-base focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
                     </div>
 
-                    <!-- Campo: CNPJ -->
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CNPJ do Estabelecimento</label>
-                        <input type="text" name="cnpj" required placeholder="00.000.000/0000-00" 
-                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
+                        <label class="block text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">CNPJ</label>
+                        <input type="tel" name="cnpj" required placeholder="Apenas números" 
+                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 text-base focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
                     </div>
                     
-                    <!-- Campo: WhatsApp -->
                     <div>
-                        <label class="block text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">WhatsApp do Comprador</label>
-                        <input type="text" name="whatsapp" required placeholder="(00) 00000-0000" 
-                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
+                        <label class="block text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">WhatsApp</label>
+                        <input type="tel" name="whatsapp" required placeholder="(51) 9..." 
+                            class="w-full px-4 py-3 bg-slate-950 border border-slate-700 rounded-xl text-white placeholder-slate-600 text-base focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition-all">
                     </div>
 
-                    <!-- Botão de Envio -->
-                    <button type="submit" class="btn-glow w-full mt-4 bg-gradient-to-r from-sky-600 to-blue-600 text-white font-extrabold py-4 px-6 rounded-xl text-sm uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2">
-                        <span>Acessar Tabela Atacado</span>
+                    <button type="submit" class="btn-glow w-full mt-2 bg-gradient-to-r from-sky-600 to-blue-600 text-white font-extrabold py-4 px-6 rounded-xl text-sm uppercase tracking-widest transition-all duration-300 flex items-center justify-center gap-2">
+                        <span>Acessar Catálogo</span>
                     </button>
                 </form>
             </div>
