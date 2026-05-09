@@ -35,7 +35,7 @@ def enviar_alerta_ntfy(pedido):
         hora_f = str(pedido.hora_entrega)
         
         # Se veio pelo Webhook e já está pago, avisa com destaque
-        status_pgto = "✅ PIX CONFIRMADO" if (pedido.status == 'PAGO' and pedido.forma_pagamento == 'PIX') else pedido.forma_pagamento
+        status_pgto = "PIX CONFIRMADO" if (pedido.status == 'PAGO' and pedido.forma_pagamento == 'PIX') else pedido.forma_pagamento
         
         wpp_limpo = lead.whatsapp.replace('(', '').replace(')', '').replace('-', '').replace(' ', '')
         link_whatsapp_oficial = f"https://wa.me/55{wpp_limpo}?text={quote('Olá! Recebemos seu pedido no nosso portal B2B.')}"
@@ -59,16 +59,16 @@ def enviar_alerta_ntfy(pedido):
             data=msg_alerta.encode('utf-8'), 
             method="POST"
         )
-        req.add_header("Title", f"🚨 NOVO PEDIDO: #{pedido.id}") 
-        req.add_header("Tags", "fish,moneybag,rotating_light") 
+        # REMOVIDO: Emojis do Título (Para não quebrar a biblioteca urllib do Python)
+        req.add_header("Title", f"NOVO PEDIDO: #{pedido.id} - {lead.nome_restaurante}") 
+        # ADICIONADO: A sirene nas "Tags", onde o Ntfy aceita converter em emojis nativos
+        req.add_header("Tags", "rotating_light,fish,moneybag") 
         req.add_header("Click", link_whatsapp_oficial)
         urllib.request.urlopen(req)
     except Exception as e:
         print(f"Falha ao enviar Ntfy: {e}")
-
-# ==========================================
-# VIEWS NORMAIS DO SISTEMA
-# ==========================================
+        
+        
 def pagina_captura(request):
     if request.method == "POST":
         nome_digitado = request.POST.get("nome_restaurante")
