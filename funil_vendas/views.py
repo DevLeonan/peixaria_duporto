@@ -212,40 +212,69 @@ def excluir_produto(request, produto_id):
     return redirect('gerenciar_produtos')
     
 # ==========================================
-# FINALIZAR PEDIDO COM PIX E NOTIFICAÇÃO NTFY (PUSH NATIVO)
+# FINALIZAR PEDIDO COM PIX INTELIGENTE (CPF/CNPJ) E NTFY
 # ==========================================
 def finalizar_pedido(request, token):
     if request.method == "POST":
         lead = LeadRestaurante.objects.filter(token_acesso=token).first()
-        if not lead: return JsonResponse({'sucesso': False, 'erro': 'Cliente não encontrado'})
+        if not lead:
+            return JsonResponse({'sucesso': False, 'erro': 'Cliente não encontrado'})
 
         try:
             dados = json.loads(request.body)
-            carrinho, forma_pagamento = dados.get('carrinho', []), dados.get('forma_pagamento', 'PIX')
-            endereco, data_entrega, hora_entrega = dados.get('endereco', ''), dados.get('data_entrega'), dados.get('hora_entrega')
+            carrinho = dados.get('carrinho', [])
+            forma_pagamento = dados.get('forma_pagamento', 'PIX')
+            
+            endereco = dados.get('endereco', '')
+            data_entrega = dados.get('data_entrega', None)
+            hora_entrega = dados.get('hora_entrega', None)
+            
+            if not data_entrega: data_entrega = None
+            if not hora_entrega: hora_entrega = None
 
             pedido = Pedido.objects.create(
-                lead=lead, forma_pagamento=forma_pagamento, valor_total=0,
-                endereco_entrega=endereco, data_entrega=data_entrega or None, hora_entrega=hora_entrega or None
+                lead=lead,
+                forma_pagamento=forma_pagamento,
+                valor_total=0,
+                endereco_entrega=endereco,
+                data_entrega=data_entrega,
+                hora_entrega=hora_entrega
             )
 
             total_calculado = 0
             for item in carrinho:
                 corte = CortePescado.objects.get(id=item['id'])
-                qtd = float(item['quantidade'])
-                total_calculado += float(corte.preco_por_kg) * qtd
-                ItemPedido.objects.create(pedido=pedido, corte=corte, quantidade_kg=qtd, preco_na_epoca=corte.preco_por_kg)
+                quantidade = float(item['quantidade'])
+                total_calculado += float(corte.preco_por_kg) * quantidade
+                
+                ItemPedido.objects.create(
+                    pedido=pedido,
+                    corte=corte,
+                    quantidade_kg=quantidade,
+                    preco_na_epoca=corte.preco_por_kg
+                )
 
             pedido.valor_total = total_calculado
             pedido.save()
 
-            qr_code_base64 = pix_copia_cola = ""
+            qr_code_base64 = ""
+            pix_copia_cola = ""
             
             if forma_pagamento == 'PIX':
-                cnpj_limpo = lead.cnpj.replace('.', '').replace('/', '').replace('-', '')
-                # Se o CNPJ for vazio ou muito curto, usa um CPF genérico para não travar o Mercado Pago
-                if len(cnpj_limpo) < 11:
-                    cnpj_limpo = "00000000000191" 
+                # --- LÓGICA DE IDENTIFICAÇÃO INTELIGENTE ---
+                # Remove qualquer ponto, barra ou traço que o cliente possa ter digitado
+                id_limpo = lead.cnpj.replace('.', '').replace('/', '').replace('-', '').replace(' ', '').strip()
+                
+                # O Mercado Pago exige saber se é CPF (11) ou CNPJ (14)
+                if len(id_limpo) == 11:
+                    tipo_doc = "CPF"
+                elif len(id_limpo) == 14:
+                    tipo_doc = "CNPJ"
+                else:
+                    # Se não for nenhum dos dois, o Mercado Pago vai dar erro. 
+                    # Aqui evitamos o erro avisando ao cliente antes.
+                    pedido.delete()
+                    return JsonResponse({'sucesso': False, 'erro': f"O documento '{id_limpo}' é inválido. Digite um CPF ou CNPJ correto."})
                     
                 payment_data = {
                     "transaction_amount": float(total_calculado),
@@ -253,31 +282,33 @@ def finalizar_pedido(request, token):
                     "payment_method_id": "pix",
                     "external_reference": str(pedido.id),
                     "payer": {
-                        "email": f"cliente_{pedido.id}@peixariaduporto.com.br",
-                        "first_name": lead.nome_restaurante or "Cliente B2B",
-                        "identification": {"type": "CNPJ", "number": cnpj_limpo}
+                        "email": f"comprador_{pedido.id}@peixariaduporto.com.br",
+                        "first_name": lead.nome_restaurante or "Cliente",
+                        "identification": {
+                            "type": tipo_doc, # <--- DINÂMICO: Agora aceita CPF ou CNPJ
+                            "number": id_limpo
+                        }
                     }
                 }
                 
                 payment_response = sdk.payment().create(payment_data)
                 payment = payment_response.get("response", {})
                 
-                # VERIFICAÇÃO DE ERRO DO MERCADO PAGO
                 if "point_of_interaction" in payment:
                     pix_copia_cola = payment["point_of_interaction"]["transaction_data"]["qr_code"]
                     qr_code_base64 = payment["point_of_interaction"]["transaction_data"]["qr_code_base64"]
                 else:
-                    erro_mp = payment.get("message", "Erro desconhecido")
+                    # Captura o erro detalhado para você saber o que houve
+                    erro_detalhado = payment.get("message", "Erro na API do Mercado Pago")
                     pedido.delete() 
-                    return JsonResponse({'sucesso': False, 'erro': f"Mercado Pago recusou: {erro_mp}"})
+                    return JsonResponse({'sucesso': False, 'erro': f"Mercado Pago recusou: {erro_detalhado}"})
 
             # ==========================================
             # ALARME NATIVO NO CELULAR (NTFY)
             # ==========================================
-            # INVENTE SEU TÓPICO AQUI (O mesmo que você digitou no App do celular)
             topico_secreto = "duporto_pedidos_vip_2026" 
-            
             msg_alerta = (
+                f"🚨 ALERTA DE VENDA 🚨\n"
                 f"👤 Cliente: {lead.nome_restaurante}\n"
                 f"💰 Valor: R$ {total_calculado:.2f}\n"
                 f"💳 Pagamento: {forma_pagamento}\n"
@@ -286,29 +317,31 @@ def finalizar_pedido(request, token):
             
             try:
                 import urllib.request
-                # Envia a notificação Push direta
                 req = urllib.request.Request(
                     f"https://ntfy.sh/{topico_secreto}", 
                     data=msg_alerta.encode('utf-8'), 
                     method="POST"
                 )
-                # Adiciona o Título da Notificação
-                req.add_header("Title", f" NOVO PEDIDO: #{pedido.id}")
-                req.add_header("Tags", "moneybag,fish") # Coloca emojis na notificação
+                req.add_header("Title", f"Novo Pedido: #{pedido.id}") 
+                req.add_header("Tags", "fish,moneybag") 
                 urllib.request.urlopen(req)
             except Exception as e:
-                print(f"Falha ao enviar notificação pro celular: {e}")
+                print(f"Falha ao enviar Ntfy: {e}")
 
-            # --- PREPARA O WHATSAPP DO CLIENTE ---
+            # --- WHATSAPP DO CLIENTE ---
             data_formatada = "Sem data" if not data_entrega else data_entrega
             hora_formatada = "Sem hora" if not hora_entrega else hora_entrega
-            texto_wpp = f"Fala Peixaria Duporto! Acabei de confirmar o *Pedido #{pedido.id}*.\n\n📍 *Endereço:* {endereco}\n📅 *Agendado para:* {data_formatada} às {hora_formatada}\n💰 *Total:* R$ {total_calculado:.2f} ({forma_pagamento})"
+            texto_wpp = f"Fala Peixaria Duporto! Confirmei o *Pedido #{pedido.id}*.\n\n📍 *Entrega:* {endereco}\n📅 *Data:* {data_formatada} às {hora_formatada}\n💰 *Total:* R$ {total_calculado:.2f}"
             link_whatsapp_oficial = f"https://wa.me/5551996799655?text={quote(texto_wpp)}"
 
             return JsonResponse({
-                'sucesso': True, 'pedido_id': pedido.id, 'total': float(total_calculado),
-                'forma_pagamento': forma_pagamento, 'link_whatsapp': link_whatsapp_oficial,
-                'qr_code_64': qr_code_base64, 'pix_copia_cola': pix_copia_cola
+                'sucesso': True, 
+                'pedido_id': pedido.id, 
+                'total': float(total_calculado),
+                'forma_pagamento': forma_pagamento, 
+                'link_whatsapp': link_whatsapp_oficial,
+                'qr_code_64': qr_code_base64, 
+                'pix_copia_cola': pix_copia_cola
             })
         except Exception as e: 
             return JsonResponse({'sucesso': False, 'erro': str(e)})
