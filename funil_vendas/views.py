@@ -19,6 +19,56 @@ import urllib.parse
 # ==========================================
 sdk = mercadopago.SDK("APP_USR-5402725203039388-020123-10a75c260cf12f6663994256fc156b5d-1365742803")
 
+# ==========================================
+# FUNÇÃO DE COMANDA (DISPARO NTFY INTELIGENTE)
+# ==========================================
+def enviar_alerta_ntfy(pedido):
+    try:
+        lead = pedido.lead
+        itens = ItemPedido.objects.filter(pedido=pedido)
+        
+        lista_itens_ntfy = ""
+        for item in itens:
+            lista_itens_ntfy += f"• {float(item.quantidade_kg)}kg - {item.corte.nome}\n"
+            
+        data_f = pedido.data_entrega.strftime("%d/%m/%Y") if hasattr(pedido.data_entrega, 'strftime') else str(pedido.data_entrega)
+        hora_f = str(pedido.hora_entrega)
+        
+        # Se veio pelo Webhook e já está pago, avisa com destaque
+        status_pgto = "✅ PIX CONFIRMADO" if (pedido.status == 'PAGO' and pedido.forma_pagamento == 'PIX') else pedido.forma_pagamento
+        
+        wpp_limpo = lead.whatsapp.replace('(', '').replace(')', '').replace('-', '').replace(' ', '')
+        link_whatsapp_oficial = f"https://wa.me/55{wpp_limpo}?text={quote('Olá! Recebemos seu pedido no nosso portal B2B.')}"
+        
+        topico_secreto = "duporto_pedidos_vip_2026" 
+        msg_alerta = (
+            f"🧾 RESTAURANTE: {lead.nome_restaurante}\n"
+            f"📱 Contato: {lead.whatsapp}\n"
+            f"----------------------------------\n"
+            f"🐟 ITENS DO PEDIDO:\n"
+            f"{lista_itens_ntfy}"
+            f"----------------------------------\n"
+            f"📅 Agendado: {data_f} | {hora_f}\n"
+            f"📍 Local: {pedido.endereco_entrega}\n"
+            f"💳 Pgto: {status_pgto}\n"
+            f"💰 TOTAL: R$ {pedido.valor_total:.2f}"
+        )
+        
+        req = urllib.request.Request(
+            f"https://ntfy.sh/{topico_secreto}", 
+            data=msg_alerta.encode('utf-8'), 
+            method="POST"
+        )
+        req.add_header("Title", f"🚨 NOVO PEDIDO: #{pedido.id}") 
+        req.add_header("Tags", "fish,moneybag,rotating_light") 
+        req.add_header("Click", link_whatsapp_oficial)
+        urllib.request.urlopen(req)
+    except Exception as e:
+        print(f"Falha ao enviar Ntfy: {e}")
+
+# ==========================================
+# VIEWS NORMAIS DO SISTEMA
+# ==========================================
 def pagina_captura(request):
     if request.method == "POST":
         nome_digitado = request.POST.get("nome_restaurante")
@@ -50,15 +100,10 @@ def catalogo_precos(request, token):
 
     cortes = CortePescado.objects.filter(disponivel=True)
 
-    # ==========================================
-    # LÓGICA DO BOTÃO MÁGICO (REPETIR PEDIDO)
-    # ==========================================
-    # 1. Procura o último pedido finalizado por este cliente
     ultimo_pedido = Pedido.objects.filter(lead=lead).order_by('-data_pedido').first()
     
     ultimo_carrinho = []
     if ultimo_pedido:
-        # 2. Se achar, pega os itens que ele comprou na época
         itens_ultimo = ItemPedido.objects.filter(pedido=ultimo_pedido)
         for item in itens_ultimo:
             ultimo_carrinho.append({
@@ -66,14 +111,13 @@ def catalogo_precos(request, token):
                 'quantidade': float(item.quantidade_kg)
             })
             
-    # 3. Transforma a lista numa linguagem que o Javascript entenda lá na tela
     ultimo_carrinho_json = json.dumps(ultimo_carrinho)
 
     return render(request, 'catalogo.html', {
         'cortes': cortes, 
         'lead': lead,
-        'ultimo_carrinho_json': ultimo_carrinho_json, # Manda o histórico escondido pra tela
-        'tem_pedido_anterior': bool(ultimo_carrinho)  # Avisa se é pra mostrar o botão ou não
+        'ultimo_carrinho_json': ultimo_carrinho_json,
+        'tem_pedido_anterior': bool(ultimo_carrinho)
     })
 
 @login_required
@@ -110,7 +154,6 @@ def painel_interno(request):
             pedidos_pendentes.append(p)
             pendente_total += p.valor_total
 
-    # Gráficos
     top_itens = ItemPedido.objects.filter(pedido__status='PAGO').values('corte__nome').annotate(total_kg=Sum('quantidade_kg')).order_by('-total_kg')[:5]
     nomes_peixes = [item['corte__nome'] for item in top_itens]
     qtd_peixes = [float(item['total_kg']) for item in top_itens]
@@ -237,7 +280,7 @@ def excluir_produto(request, produto_id):
     return redirect('gerenciar_produtos')
     
 # ==========================================
-# FINALIZAR PEDIDO COM PIX INTELIGENTE (CPF/CNPJ) E NTFY
+# FINALIZAR PEDIDO (NTFY VAI DEPENDER DA FORMA DE PGTO)
 # ==========================================
 def finalizar_pedido(request, token):
     if request.method == "POST":
@@ -286,7 +329,6 @@ def finalizar_pedido(request, token):
             pix_copia_cola = ""
             
             if forma_pagamento == 'PIX':
-                # --- LÓGICA DE IDENTIFICAÇÃO INTELIGENTE ---
                 id_limpo = lead.cnpj.replace('.', '').replace('/', '').replace('-', '').replace(' ', '').strip()
                 
                 if len(id_limpo) == 11:
@@ -323,43 +365,22 @@ def finalizar_pedido(request, token):
                     pedido.delete() 
                     return JsonResponse({'sucesso': False, 'erro': f"Mercado Pago recusou: {erro_detalhado}"})
 
-            # ==========================================
-            # ALARME NATIVO NO CELULAR (NTFY)
-            # ==========================================
-            topico_secreto = "duporto_pedidos_vip_2026" 
-            msg_alerta = (
-                f"🚨 ALERTA DE VENDA 🚨\n"
-                f"👤 Cliente: {lead.nome_restaurante}\n"
-                f"💰 Valor: R$ {total_calculado:.2f}\n"
-                f"💳 Pagamento: {forma_pagamento}\n"
-                f"📍 Endereço: {endereco}"
-            )
-            
-            try:
-                import urllib.request
-                req = urllib.request.Request(
-                    f"https://ntfy.sh/{topico_secreto}", 
-                    data=msg_alerta.encode('utf-8'), 
-                    method="POST"
-                )
-                req.add_header("Title", f"Novo Pedido: #{pedido.id}") 
-                req.add_header("Tags", "fish,moneybag") 
-                urllib.request.urlopen(req)
-            except Exception as e:
-                print(f"Falha ao enviar Ntfy: {e}")
+            # --- SE FOR DINHEIRO, APITA NO CELULAR NA HORA ---
+            if forma_pagamento == 'DINHEIRO':
+                enviar_alerta_ntfy(pedido)
 
-            # --- WHATSAPP DO CLIENTE ---
+            # --- PREPARANDO O LINK DO WHATSAPP DO CLIENTE ---
             data_formatada = "Sem data" if not data_entrega else data_entrega
             hora_formatada = "Sem hora" if not hora_entrega else hora_entrega
             texto_wpp = f"Fala Peixaria Duporto! Confirmei o *Pedido #{pedido.id}*.\n\n📍 *Entrega:* {endereco}\n📅 *Data:* {data_formatada} às {hora_formatada}\n💰 *Total:* R$ {total_calculado:.2f}"
-            link_whatsapp_oficial = f"https://wa.me/5551996799655?text={quote(texto_wpp)}"
+            link_whatsapp_cliente = f"https://wa.me/5551996799655?text={quote(texto_wpp)}"
 
             return JsonResponse({
                 'sucesso': True, 
                 'pedido_id': pedido.id, 
                 'total': float(total_calculado),
                 'forma_pagamento': forma_pagamento, 
-                'link_whatsapp': link_whatsapp_oficial,
+                'link_whatsapp': link_whatsapp_cliente,
                 'qr_code_64': qr_code_base64, 
                 'pix_copia_cola': pix_copia_cola
             })
@@ -368,7 +389,7 @@ def finalizar_pedido(request, token):
     return JsonResponse({'sucesso': False})
 
 # ==========================================
-# WEBHOOK MERCADO PAGO (AUTOMAÇÃO DE PAGAMENTO)
+# WEBHOOK MERCADO PAGO (SÓ APITA QUANDO CAI O PIX)
 # ==========================================
 @csrf_exempt
 def webhook_mercadopago(request):
@@ -389,8 +410,13 @@ def webhook_mercadopago(request):
                         
                         if pedido_id:
                             pedido = Pedido.objects.get(id=pedido_id)
-                            pedido.status = 'PAGO'
-                            pedido.save()
+                            # Se o pedido ainda está pendente, marcamos como PAGO e APITAMOS O CELULAR!
+                            if pedido.status != 'PAGO':
+                                pedido.status = 'PAGO'
+                                pedido.save()
+                                
+                                # Agora sim, com o dinheiro na conta, avisa a equipe para cortar o peixe!
+                                enviar_alerta_ntfy(pedido)
                             
         except Exception as e:
             print(f"Erro no Webhook: {e}")
